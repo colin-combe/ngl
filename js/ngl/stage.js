@@ -42,6 +42,26 @@ NGL.Stage = function( eid ){
 
     this.pickingControls = new NGL.PickingControls( this.viewer, this );
 
+    //
+
+    // TODO add/create proxy object for picked structure
+    // then transform its local matrix (also needs to be implemented)
+    // or transform individual atom coordinates (also TBI)
+
+    this.transformControls = new THREE.TransformControls(
+        this.viewer.camera, this.viewer.renderer.domElement
+    );
+    this.transformControls.addEventListener(
+        'change', this.viewer.render.bind( this.viewer )
+    );
+    this.viewer.scene.add( this.transformControls );
+
+    this.signals.atomPicked.add( function( atom ){
+
+        console.log( "moin", atom );
+
+    } );
+
 }
 
 NGL.Stage.prototype = {
@@ -431,7 +451,7 @@ NGL.Stage.prototype = {
         return compList.concat( reprList );
 
     },
-    
+
     dispose: function(){
 
         this.tasks.dispose();
