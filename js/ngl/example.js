@@ -1133,6 +1133,133 @@ NGL.Examples = {
 
             } );
 
+        },
+
+        "cannon": function( stage ){
+
+            var world = new CANNON.World();
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.gravity.set( 0, 0, 0 );
+            world.solver.iterations = 20;
+            world.allowSleep = true;
+
+            var component;
+            var structure;
+            var dt = 1 / 60;
+            var particles = [];
+
+            function animate() {
+
+                requestAnimationFrame( animate );
+                world.step( dt );
+                render();
+
+            }
+
+            function render() {
+
+                var n = particles.length;
+                var atoms = structure.atoms;
+
+                var sleepState = 1;
+
+                for( var i = 0; i < n; ++i ){
+
+                    var p = particles[ i ];
+
+                    if( p.sleepState === 0 ){
+
+                        var pp = p.position;
+                        var a = atoms[ i ];
+
+                        a.x = pp.x;
+                        a.y = pp.y;
+                        a.z = pp.z;
+
+                        sleepState = 0;
+
+                    }
+
+                }
+
+                if( sleepState === 0 ){
+
+                    component.updateRepresentations( { "position": true } );
+
+                    stage.viewer.render();
+
+                }
+
+            }
+
+            stage.signals.atomPicked.add( function( a ){
+
+                var mag = 10;
+                var p = particles[ a.index ];
+
+                p.sleepState = 0;
+                p.velocity.set(
+                    Math.random() * mag,
+                    Math.random() * mag,
+                    Math.random() * mag
+                );
+
+            } );
+
+            stage.loadFile( "data://1crn.pdb", function( o ){
+
+                o.addRepresentation( "cartoon" );
+                o.addRepresentation( "ball+stick" );
+                o.centerView();
+
+                component = o;
+                structure = o.structure;
+
+                structure.eachAtom( function( a ){
+
+                    var particle = new CANNON.Body( {
+                        mass: a.covalent / Math.pow( 10, 15 )
+                    } );
+                    particle.addShape( new CANNON.Particle() );
+                    particle.linearDamping = 0.5;
+                    particle.allowSleep = true;
+                    particle.position.set( a.x, a.y, a.z );
+                    particles.push( particle );
+                    world.add( particle );
+                    particle.velocity.set(
+                        Math.random(),
+                        Math.random(),
+                        Math.random()
+                    );
+
+                } );
+
+                structure.bondSet.eachBond( function( b ){
+
+                    var a1 = b.atom1;
+                    var a2 = b.atom2;
+
+                    world.addConstraint(
+                        new CANNON.DistanceConstraint(
+                            particles[ a1.index ],
+                            particles[ a2.index ],
+                            a1.covalent + a2.covalent
+                        )
+                    );
+
+                } );
+
+                console.log( world );
+                console.log( particles );
+
+                console.log( "tasks", stage.tasks.count );
+
+                setTimeout( function(){ animate(); }, 500 );
+
+                // animate();
+
+            } );
+
         }
 
     }
