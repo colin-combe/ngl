@@ -276,3 +276,82 @@ NGL.autoLoad = function(){
     }
 
 }();
+
+
+// Protocol
+
+NGL.ProtocolHandler = {
+
+    protocols: {
+
+        "http": NGL.HttpProtocol,
+        "https": NGL.HttpProtocol,
+        "ftp": NGL.HttpProtocol,
+
+        "rcsb": NGL.RcsbProtocol,
+
+        "data": NGL.DataProtocol,
+        "file": NGL.FileProtocol,
+
+    },
+
+    add: function( protocol ){
+
+    },
+
+    get: function( name ){
+
+    }
+
+};
+
+NGL.Protocol = function( input, params ){
+
+    this.input = input;
+    this.params = params;
+
+    var fileInfo = NGL.getFileInfo( input );
+
+    // NGL.log( fileInfo );
+
+    var path = fileInfo.path;
+    var name = fileInfo.name;
+    var ext = fileInfo.ext;
+    var compressed = fileInfo.compressed;
+    var protocol = fileInfo.protocol;
+
+    this.getSrc = function(){
+
+        return this.protocol + "://" + this.path;
+
+    }
+
+};
+
+
+NGL.HttpProtocol = function( input, params ){
+
+    NGL.Protocol.call( this, input, params );
+
+};
+
+
+NGL.RcsbProtocol = function( input, params ){
+
+    NGL.Protocol.call( this, input, params );
+
+};
+
+
+NGL.DataProtocol = function( input, params ){
+
+    NGL.Protocol.call( this, input, params );
+
+};
+
+
+NGL.FileProtocol = function( input, params ){
+
+    NGL.Protocol.call( this, input, params );
+
+};
