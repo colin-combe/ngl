@@ -100,6 +100,7 @@ NGL.ParserLoader.prototype = NGL.createObject(
             "ent": NGL.PdbParser,
             "cif": NGL.CifParser,
             "mmcif": NGL.CifParser,
+            "sdf": NGL.SdfParser,
 
             "mrc": NGL.MrcParser,
             "ccp4": NGL.MrcParser,
@@ -108,7 +109,11 @@ NGL.ParserLoader.prototype = NGL.createObject(
             "cube": NGL.CubeParser,
 
             "ply": NGL.PlyParser,
-            "obj": NGL.ObjParser
+            "obj": NGL.ObjParser,
+
+            "txt": NGL.TextParser,
+            "csv": NGL.CsvParser,
+            "json": NGL.JsonParser
 
         };
 
@@ -141,7 +146,7 @@ NGL.ScriptLoader.prototype = NGL.createObject(
 
             var text = NGL.Uint8ToString( this.streamer.data );
 
-            var script = new NGL.Script( text, this.name, this.streamer.src );
+            var script = new NGL.Script( text, this.name, this.path );
 
             this.onload( script );
 
@@ -161,6 +166,7 @@ NGL.autoLoad = function(){
         "ent": NGL.ParserLoader,
         "cif": NGL.ParserLoader,
         "mmcif": NGL.ParserLoader,
+        "sdf": NGL.ParserLoader,
 
         "mrc": NGL.ParserLoader,
         "ccp4": NGL.ParserLoader,
@@ -169,6 +175,10 @@ NGL.autoLoad = function(){
 
         "obj": NGL.ParserLoader,
         "ply": NGL.ParserLoader,
+
+        "txt": NGL.ParserLoader,
+        "csv": NGL.ParserLoader,
+        "json": NGL.ParserLoader,
 
         "ngl": NGL.ScriptLoader,
 
