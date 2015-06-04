@@ -1265,7 +1265,7 @@ NGL.Viewer.prototype = {
 
     },
 
-    updateBoundingBox: function( geometry, matrix ){
+    updateBoundingBox: function( geometry, matrix, force ){
 
         var gbb;
         var bb = this.boundingBox;
@@ -1278,7 +1278,7 @@ NGL.Viewer.prototype = {
 
         if( geometry ){
 
-            if( !geometry.boundingBox ){
+            if( !geometry.boundingBox || force ){
                 geometry.computeBoundingBox();
             }
 
@@ -1300,7 +1300,7 @@ NGL.Viewer.prototype = {
 
                 if ( node.geometry !== undefined ){
 
-                    if( !node.geometry.boundingBox ){
+                    if( !node.geometry.boundingBox || force ){
                         node.geometry.computeBoundingBox();
                     }
 

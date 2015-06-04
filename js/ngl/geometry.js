@@ -1737,3 +1737,440 @@ NGL.polarBackboneContacts = function( structure, maxDistance, maxAngle ){
     return data;
 
 }
+
+
+///////////
+// Layout
+
+NGL.Graph = function(options) {
+
+    /**
+        @author David Piegza
+
+        Implements a graph structure.
+        Consists of Graph, Nodes and Edges.
+
+
+        Nodes:
+        Create a new Node with an id. A node has the properties
+        id, position and data.
+
+        Example:
+        node = new Node(1);
+        node.position.x = 100;
+        node.position.y = 100;
+        node.data.title = "Title of the node";
+
+        The data property can be used to extend the node with custom
+        informations. Then, they can be used in a visualization.
+
+
+        Edges:
+        Connects to nodes together.
+
+        Example:
+        edge = new Edge(node1, node2);
+
+        An edge can also be extended with the data attribute. E.g. set a
+        type like "friends", different types can then be draw in differnt ways.
+
+
+        Graph:
+
+        Parameters:
+        options = {
+            limit: <int>, maximum number of nodes
+        }
+
+        Methods:
+        addNode(node) - adds a new node and returns true if the node has been added,
+                      otherwise false.
+        getNode(node_id) - returns the node with node_id or undefined, if it not exist
+        addEdge(node1, node2) - adds an edge for node1 and node2. Returns true if the
+                              edge has been added, otherwise false (e.g.) when the
+                              edge between these nodes already exist.
+
+        reached_limit() - returns true if the limit has been reached, otherwise false
+
+    */
+
+    this.options = options || {};
+    this.nodeSet = {};
+    this.nodes = [];
+    this.edges = [];
+    this.layout;
+
+};
+
+NGL.Graph.prototype = {
+
+    addNode: function(node) {
+
+        if(this.nodeSet[node.id] == undefined && !this.reached_limit()) {
+            this.nodeSet[node.id] = node;
+            this.nodes.push(node);
+            return true;
+        }
+        return false;
+
+    },
+
+    getNode: function(node_id) {
+
+        return this.nodeSet[node_id];
+
+    },
+
+    addEdge: function(source, target) {
+
+        if(source.addConnectedTo(target) === true) {
+            var edge = new NGL.Edge(source, target);
+            this.edges.push(edge);
+            return true;
+        }
+        return false;
+
+    },
+
+    reached_limit: function() {
+
+        if(this.options.limit != undefined){
+            return this.options.limit <= this.nodes.length;
+        }else{
+            return false;
+        }
+
+    }
+
+};
+
+
+NGL.Node = function(node_id) {
+
+    this.id = node_id;
+    this.nodesTo = [];
+    this.nodesFrom = [];
+    this.position = {};
+    this.data = {};
+
+};
+
+NGL.Node.prototype = {
+
+    addConnectedTo: function(node) {
+
+        if(this.connectedTo(node) === false) {
+            this.nodesTo.push(node);
+            return true;
+        }
+        return false;
+
+    },
+
+    connectedTo: function(node) {
+
+        for(var i=0; i < this.nodesTo.length; i++) {
+            var connectedNode = this.nodesTo[i];
+            if(connectedNode.id == node.id) {
+                return true;
+            }
+        }
+        return false;
+
+    }
+
+};
+
+
+NGL.Edge = function(source, target) {
+
+    this.source = source;
+    this.target = target;
+    this.data = {};
+
+};
+
+
+NGL.ForceDirectedLayout = function( graph, options ){
+
+    /**
+        @author David Piegza
+
+        Implements a force-directed layout, the algorithm is based on Fruchterman and Reingold and
+        the JUNG implementation.
+
+        Needs the graph data structure Graph.js:
+        https://github.com/davidpiegza/Graph-Visualization/blob/master/Graph.js
+
+        Parameters:
+        graph - data structure
+        options = {
+            layout: "2d" or "3d"
+            attraction: <float>, attraction value for force-directed layout
+            repulsion: <float>, repulsion value for force-directed layout
+            iterations: <int>, maximum number of iterations
+            width: <int>, width of the viewport
+            height: <int>, height of the viewport
+
+            positionUpdated: <function>, called when the position of the node has been updated
+        }
+
+        Examples:
+
+        create:
+        layout = new Layout.ForceDirected(graph, {width: 2000, height: 2000, iterations: 1000, layout: "3d"});
+
+        call init when graph is loaded (and for reset or when new nodes has been added to the graph):
+        layout.init();
+
+        call generate in a render method, returns true if it's still calculating and false if it's finished
+        layout.generate();
+
+
+        Feel free to contribute a new layout!
+
+    */
+
+    var options = options || {};
+
+    this.layout = options.layout || "2d";
+    this.attraction_multiplier = options.attraction || 5;
+    this.repulsion_multiplier = options.repulsion || 0.75;
+    this.max_iterations = options.iterations || 1000;
+    this.graph = graph;
+    this.width = options.width || 200;
+    this.height = options.height || 200;
+    this.finished = false;
+
+    this.callback_positionUpdated = options.positionUpdated;
+
+    this.attraction_constant;
+    this.repulsion_constant;
+    this.forceConstant;
+    this.temperature = 0;
+    this.nodes_length;
+    this.edges_length;
+
+    // performance test
+    this.mean_time = 0;
+
+};
+
+NGL.ForceDirectedLayout.prototype = {
+
+    /**
+     * Initialize parameters used by the algorithm.
+     */
+    init: function(){
+
+        this.finished = false;
+        this.temperature = this.width / 10.0;
+        this.nodes_length = this.graph.nodes.length;
+        this.edges_length = this.graph.edges.length;
+        this.forceConstant = Math.sqrt(this.height * this.width / this.nodes_length);
+        this.attraction_constant = this.attraction_multiplier * this.forceConstant;
+        this.repulsion_constant = this.repulsion_multiplier * this.forceConstant;
+
+        this.layout_iterations = 0;
+
+    },
+
+    /**
+     * Generates the force-directed layout.
+     *
+     * It finishes when the number of max_iterations has been reached or when
+     * the temperature is nearly zero.
+     */
+    generate: function() {
+
+        var graph = this.graph;
+
+        var callback_positionUpdated = this.callback_positionUpdated;
+
+        var EPSILON = 0.000000001;
+
+        var attraction_constant = this.attraction_constant;
+        var repulsion_constant = this.repulsion_constant;
+        var forceConstant = this.forceConstant;
+        var temperature = this.temperature;
+        var nodes_length = this.nodes_length;
+        var edges_length = this.edges_length;
+        var that = this;
+
+        // performance test
+        var mean_time = 0;
+
+        if(this.layout_iterations < this.max_iterations && this.temperature > EPSILON) {
+            var start = new Date().getTime();
+
+            // calculate repulsion
+            for(var i=0; i < nodes_length; i++) {
+
+                var node_v = graph.nodes[i];
+                node_v.layout = node_v.layout || {};
+                if(i==0) {
+                    node_v.layout.offset_x = 0;
+                    node_v.layout.offset_y = 0;
+                    if(this.layout === "3d") {
+                        node_v.layout.offset_z = 0;
+                    }
+                }
+
+                node_v.layout.force = 0;
+                node_v.layout.tmp_pos_x = node_v.layout.tmp_pos_x || node_v.position.x;
+                node_v.layout.tmp_pos_y = node_v.layout.tmp_pos_y || node_v.position.y;
+                if(this.layout === "3d") {
+                    node_v.layout.tmp_pos_z = node_v.layout.tmp_pos_z || node_v.position.z;
+                }
+
+                for(var j=i+1; j < nodes_length; j++) {
+
+                    var node_u = graph.nodes[j];
+                    if(i != j) {
+                        node_u.layout = node_u.layout || {};
+                        node_u.layout.tmp_pos_x = node_u.layout.tmp_pos_x || node_u.position.x;
+                        node_u.layout.tmp_pos_y = node_u.layout.tmp_pos_y || node_u.position.y;
+                        if(this.layout === "3d") {
+                            node_u.layout.tmp_pos_z = node_u.layout.tmp_pos_z || node_u.position.z;
+                        }
+
+                        var delta_x = node_v.layout.tmp_pos_x - node_u.layout.tmp_pos_x;
+                        var delta_y = node_v.layout.tmp_pos_y - node_u.layout.tmp_pos_y;
+                        if(this.layout === "3d") {
+                            var delta_z = node_v.layout.tmp_pos_z - node_u.layout.tmp_pos_z;
+                        }
+
+                        var delta_length = Math.max(EPSILON, Math.sqrt((delta_x * delta_x) + (delta_y * delta_y)));
+                        if(this.layout === "3d") {
+                            var delta_length_z = Math.max(EPSILON, Math.sqrt((delta_z * delta_z) + (delta_y * delta_y)));
+                        }
+
+                        var force = (repulsion_constant * repulsion_constant) / delta_length;
+                        if(this.layout === "3d") {
+                            var force_z = (repulsion_constant * repulsion_constant) / delta_length_z;
+                        }
+
+                        node_v.layout.force += force;
+                        node_u.layout.force += force;
+
+                        node_v.layout.offset_x += (delta_x / delta_length) * force;
+                        node_v.layout.offset_y += (delta_y / delta_length) * force;
+
+                        if(i==0) {
+                            node_u.layout.offset_x = 0;
+                            node_u.layout.offset_y = 0;
+                            if(this.layout === "3d") {
+                                node_u.layout.offset_z = 0;
+                            }
+                        }
+                        node_u.layout.offset_x -= (delta_x / delta_length) * force;
+                        node_u.layout.offset_y -= (delta_y / delta_length) * force;
+
+                        if(this.layout === "3d") {
+                            node_v.layout.offset_z += (delta_z / delta_length_z) * force_z;
+                            node_u.layout.offset_z -= (delta_z / delta_length_z) * force_z;
+                        }
+
+                    }
+
+                }
+
+            }
+
+            // calculate attraction
+            for(var i=0; i < edges_length; i++) {
+                var edge = graph.edges[i];
+                var delta_x = edge.source.layout.tmp_pos_x - edge.target.layout.tmp_pos_x;
+                var delta_y = edge.source.layout.tmp_pos_y - edge.target.layout.tmp_pos_y;
+                if(this.layout === "3d") {
+                    var delta_z = edge.source.layout.tmp_pos_z - edge.target.layout.tmp_pos_z;
+                }
+
+                var delta_length = Math.max(EPSILON, Math.sqrt((delta_x * delta_x) + (delta_y * delta_y)));
+                if(this.layout === "3d") {
+                    var delta_length_z = Math.max(EPSILON, Math.sqrt((delta_z * delta_z) + (delta_y * delta_y)));
+                }
+                var force = (delta_length * delta_length) / attraction_constant;
+                if(this.layout === "3d") {
+                    var force_z = (delta_length_z * delta_length_z) / attraction_constant;
+                }
+
+                edge.source.layout.force -= force;
+                edge.target.layout.force += force;
+
+                edge.source.layout.offset_x -= (delta_x / delta_length) * force;
+                edge.source.layout.offset_y -= (delta_y / delta_length) * force;
+                if(this.layout === "3d") {
+                    edge.source.layout.offset_z -= (delta_z / delta_length_z) * force_z;
+                }
+
+                edge.target.layout.offset_x += (delta_x / delta_length) * force;
+                edge.target.layout.offset_y += (delta_y / delta_length) * force;
+                if(this.layout === "3d") {
+                    edge.target.layout.offset_z += (delta_z / delta_length_z) * force_z;
+                }
+
+            }
+
+            // calculate positions
+            for(var i=0; i < nodes_length; i++) {
+                var node = graph.nodes[i];
+                var delta_length = Math.max(EPSILON, Math.sqrt(node.layout.offset_x * node.layout.offset_x + node.layout.offset_y * node.layout.offset_y));
+                if(this.layout === "3d") {
+                    var delta_length_z = Math.max(EPSILON, Math.sqrt(node.layout.offset_z * node.layout.offset_z + node.layout.offset_y * node.layout.offset_y));
+                }
+
+                node.layout.tmp_pos_x += (node.layout.offset_x / delta_length) * Math.min(delta_length, temperature);
+                node.layout.tmp_pos_y += (node.layout.offset_y / delta_length) * Math.min(delta_length, temperature);
+                if(this.layout === "3d") {
+                    node.layout.tmp_pos_z += (node.layout.offset_z / delta_length_z) * Math.min(delta_length_z, temperature);
+                }
+
+                var updated = true;
+                node.position.x -=  (node.position.x-node.layout.tmp_pos_x)/10;
+                  node.position.y -=  (node.position.y-node.layout.tmp_pos_y)/10;
+
+                if(this.layout === "3d") {
+                    node.position.z -=  (node.position.z-node.layout.tmp_pos_z)/10;
+                }
+
+                // execute callback function if positions has been updated
+                if(updated && typeof callback_positionUpdated === 'function') {
+                    callback_positionUpdated(node);
+                }
+            }
+
+            this.temperature *= (1 - (this.layout_iterations / this.max_iterations));
+            this.layout_iterations++;
+
+            var end = new Date().getTime();
+            this.mean_time += end - start;
+
+        } else {
+
+            if(!this.finished) {
+                console.log("Average time: " + (this.mean_time/this.layout_iterations) + " ms");
+            }
+            this.finished = true;
+            return false;
+
+        }
+
+
+        console.log( this.layout_iterations, this.temperature );
+        console.log("Average time: " + (this.mean_time/this.layout_iterations) + " ms");
+
+        return true;
+
+    },
+
+    /**
+     * Stops the calculation by setting the current_iterations to max_iterations.
+     */
+    stop_calculating: function() {
+
+        this.layout_iterations = this.max_iterations;
+
+    }
+
+};

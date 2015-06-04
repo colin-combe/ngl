@@ -1178,7 +1178,7 @@ NGL.Examples = {
 
         "sdf": function( stage ){
 
-            stage.loadFile( "data://adrenalin.sdf", function( o ){
+            stage.loadFile( "data://adrenaline.sdf", function( o ){
 
                 o.addRepresentation( "ball+stick" );
                 o.centerView();
