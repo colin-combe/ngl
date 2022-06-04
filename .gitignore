@@ -1,13 +1,11 @@
-
-*.sublime-project
+.gitignore
 *.sublime-workspace
 
-*.pyc
-app.cfg
-js/tracking.js
-js/examples.js
+build/
+node_modules/
+declarations/
+
+npm-debug.log
 
 *.offsets
-
-lib/build/*
-*.so
+package-lock.json
