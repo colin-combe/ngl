@@ -288,13 +288,13 @@ class PdbParser extends StructureParser {
               serialRadix = 16
             }
             hetero = (line[ 0 ] === 'H') ? 1 : 0
-            chainname = line[ 21 ].trim()
+            chainname = line.substr(20, 2).trim()
             resno = parseInt(line.substr(22, 4), resnoRadix)
             if (hex && resno === 9999) {
               resnoRadix = 16
             }
             inscode = line[ 26 ].trim()
-            resname = line.substr(17, 4).trim() || 'MOL'
+            resname = line.substr(17, 3).trim() || 'MOL'
             bfactor = parseFloat(line.substr(60, 6))
             altloc = line[ 16 ].trim()
             occupancy = parseFloat(line.substr(54, 6))
